@@ -74,9 +74,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 function normalizar($s) {
     $s = mb_strtolower($s, 'UTF-8');
-    $s = iconv('UTF-8','ASCII//TRANSLIT',$s);
+    // Quitar acentos con str_replace
+    $s = str_replace(
+        ['á','é','í','ó','ú','ü','ñ'],
+        ['a','e','i','o','u','u','n'],
+        $s
+    );
     return preg_replace('/[^a-z0-9]/','',$s);
 }
+
 
 function buscarPelicula($isan) {
     foreach ($_SESSION['peliculas'] as $p) {
