@@ -1,6 +1,6 @@
 <?php
+
 session_start();
-mb_internal_encoding("UTF-8");
 
 if (!isset($_SESSION['usuario'])) {
     header("Location: index.php");
