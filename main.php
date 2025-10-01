@@ -1,80 +1,13 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 session_start();
+mb_internal_encoding("UTF-8");
 
-if (!isset($_SESSION['usuario'])) {
-    header("Location: index.php");
-    exit;
-}
-
-if (!isset($_SESSION['peliculas'])) {
-    $_SESSION['peliculas'] = [];
-}
-
-$warning = "";
-$resultados = [];
-$old = ['nombre'=>'','isan'=>'','anio'=>'','puntuacion'=>''];
-
-// Procesar formulario
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nombre = trim($_POST['nombre'] ?? '');
-    $isan   = trim($_POST['isan'] ?? '');
-    $anio   = trim($_POST['anio'] ?? '');
-    $punt   = $_POST['puntuacion'] ?? '';
-
-    $old = ['nombre'=>$nombre,'isan'=>$isan,'anio'=>$anio,'puntuacion'=>$punt];
-
-    // 1. Nombre e ISAN vacíos
-    if ($nombre === '' && $isan === '') {
-        $warning = "Izena eta ISAN hutsik daude.";
-    }
-    // 2. Buscar por nombre
-    elseif ($isan === '' && $nombre !== '') {
-        foreach ($_SESSION['peliculas'] as $p) {
-            if (normalizar($p['nombre']) === normalizar($nombre)) {
-                $resultados[] = $p;
-            }
-        }
-    }
-    // 3. ISAN ya existe
-    elseif (buscarPelicula($isan) !== null) {
-        // Si nombre vacío → borrar
-        if ($nombre === '') {
-            foreach ($_SESSION['peliculas'] as $i=>$p) {
-                if ($p['isan']===$isan) unset($_SESSION['peliculas'][$i]);
-            }
-        }
-        // Si todos campos rellenos → actualizar
-        elseif ($anio!=='' && $punt!=='') {
-            foreach ($_SESSION['peliculas'] as &$p) {
-                if ($p['isan']===$isan) {
-                    $p['nombre']=$nombre;
-                    $p['anio']=$anio;
-                    $p['puntuacion']=$punt;
-                }
-            }
-        } else {
-            $warning = "Eremu guztiak bete behar dira eguneratzeko.";
-        }
-    }
-    // 4. ISAN nuevo y válido (8 dígitos) → añadir
-    elseif (preg_match('/^\d{8}$/',$isan)) {
-        if ($nombre!=='' && $anio!=='' && $punt!=='') {
-            $_SESSION['peliculas'][]=[
-                'nombre'=>$nombre,'isan'=>$isan,'anio'=>$anio,'puntuacion'=>$punt
-            ];
-        } else {
-            $warning="Eremu guztiak bete behar dira gehitzeko.";
-        }
-    }
-    else {
-        $warning="ISAN ez da baliozkoa.";
-    }
-}
-
+// Normalizar (quitar acentos, pasar a minúsculas, etc.)
 function normalizar($s) {
     $s = mb_strtolower($s, 'UTF-8');
-    // Quitar acentos con str_replace
     $s = str_replace(
         ['á','é','í','ó','ú','ü','ñ'],
         ['a','e','i','o','u','u','n'],
@@ -83,67 +16,125 @@ function normalizar($s) {
     return preg_replace('/[^a-z0-9]/','',$s);
 }
 
+// Inicializar sesión de películas
+if (!isset($_SESSION['peliculas'])) {
+    $_SESSION['peliculas'] = [];
+}
 
-function buscarPelicula($isan) {
-    foreach ($_SESSION['peliculas'] as $p) {
-        if ($p['isan']===$isan) return $p;
+// Guardar datos previos del formulario (para que no se pierdan al recargar)
+$old = ['nombre'=>'','isan'=>'','anio'=>'','puntuacion'=>''];
+
+// PROCESAR FORMULARIO DE PELICULAS
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['accion']) && $_POST['accion'] == "pelicula") {
+    $nombre = trim($_POST['nombre']);
+    $isan = trim($_POST['isan']);
+    $anio = trim($_POST['anio']);
+    $puntuacion = $_POST['puntuacion'];
+
+    $old = ['nombre'=>$nombre,'isan'=>$isan,'anio'=>$anio,'puntuacion'=>$puntuacion];
+
+    if (empty($isan) && empty($nombre)) {
+        echo "<p style='color:red'>Debes introducir al menos nombre o ISAN.</p>";
     }
-    return null;
+    // Añadir nueva película
+    elseif (!isset($_SESSION['peliculas'][$isan]) && preg_match('/^[0-9]{8}$/', $isan)) {
+        if ($nombre && $anio && $puntuacion !== '') {
+            $_SESSION['peliculas'][$isan] = [
+                'nombre'=>$nombre,
+                'anio'=>$anio,
+                'puntuacion'=>$puntuacion
+            ];
+        } else {
+            echo "<p style='color:red'>Faltan datos para añadir película.</p>";
+        }
+    }
+    // Actualizar película existente
+    elseif (!empty($isan) && isset($_SESSION['peliculas'][$isan])) {
+        if (!empty($nombre) && $puntuacion !== '') {
+            $_SESSION['peliculas'][$isan]['nombre'] = $nombre;
+            $_SESSION['peliculas'][$isan]['puntuacion'] = $puntuacion;
+        } else {
+            // Eliminar si nombre vacío
+            unset($_SESSION['peliculas'][$isan]);
+        }
+    }
+    else {
+        echo "<p style='color:red'>ISAN inválido o repetido.</p>";
+    }
+}
+
+// PROCESAR FORMULARIO DE BUSQUEDA
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['accion']) && $_POST['accion'] == "buscar") {
+    $buscar = trim($_POST['buscar']);
+    if (!empty($buscar)) {
+        $buscado = normalizar($buscar);
+        echo "<h3>Resultados de búsqueda para \"$buscar\":</h3>";
+        $encontrado = false;
+        foreach ($_SESSION['peliculas'] as $p) {
+            if (strpos(normalizar($p['nombre']), $buscado) !== false) {
+                echo "{$p['nombre']} ({$p['anio']})<br>";
+                $encontrado = true;
+            }
+        }
+        if (!$encontrado) {
+            echo "<p>No se encontraron películas con ese nombre.</p>";
+        }
+    } else {
+        echo "<p style='color:red'>Introduce un nombre para buscar.</p>";
+    }
 }
 ?>
-<!doctype html>
-<html lang="eu">
+
+<!DOCTYPE html>
+<html lang="es">
 <head>
-  <meta charset="utf-8">
-  <title>Top Movies</title>
+    <meta charset="UTF-8">
+    <title>ERABILTZAILEAREN FILMAK</title>
 </head>
 <body>
-  <h1>ERABILTZAILEAREN FILMAK: <?= htmlspecialchars($_SESSION['usuario']) ?></h1>
+    <h1>ERABILTZAILEAREN FILMAK</h1>
 
-  <!-- Lista -->
-  <h2>Zerrenda</h2>
-  <?php if (!empty($_SESSION['peliculas'])): ?>
+    <!-- LISTA DE PELICULAS -->
+    <h2>Lista de películas</h2>
     <ul>
-    <?php foreach ($_SESSION['peliculas'] as $p): ?>
-      <li><?= htmlspecialchars($p['nombre']) ?> (<?= $p['anio'] ?>) - 
-          ISAN: <?= $p['isan'] ?> - 
-          Puntuazioa: <?= $p['puntuacion'] ?></li>
-    <?php endforeach; ?>
+        <?php foreach($_SESSION['peliculas'] as $isan => $p): ?>
+            <li>
+                <strong><?= htmlspecialchars($p['nombre']) ?></strong> (<?= $p['anio'] ?>) 
+                - ISAN: <?= $isan ?> - Puntuación: <?= $p['puntuacion'] ?>
+            </li>
+        <?php endforeach; ?>
     </ul>
-  <?php else: ?>
-    <p>Ez dago filmik gehituta oraindik.</p>
-  <?php endif; ?>
 
-  <!-- Resultados búsqueda -->
-  <?php if (!empty($resultados)): ?>
-    <h3>Bilaketaren emaitzak:</h3>
-    <ul>
-    <?php foreach ($resultados as $r): ?>
-      <li>"<?= htmlspecialchars($r['nombre']) ?>" <?= $r['anio'] ?> urtekoa.</li>
-    <?php endforeach; ?>
-    </ul>
-  <?php endif; ?>
+    <hr>
 
-  <!-- Warning -->
-  <?php if ($warning!==""): ?>
-    <p style="color:red"><?= $warning ?></p>
-  <?php endif; ?>
+    <!-- FORMULARIO DE PELICULAS -->
+    <h2>Añadir / Editar / Eliminar película</h2>
+    <form method="post">
+        <input type="hidden" name="accion" value="pelicula">
 
-  <!-- Formulario -->
-  <h2>Formularioa</h2>
-  <form method="post">
-    Izena: <input type="text" name="nombre" value="<?= htmlspecialchars($old['nombre'] ?? '') ?>"><br>
-    ISAN: <input type="text" name="isan" value="<?= htmlspecialchars($old['isan'] ?? '') ?>"><br>
-    Urtea: <input type="text" name="anio" value="<?= htmlspecialchars($old['anio'] ?? '') ?>"><br>
-    Puntuazioa:
-    <select name="puntuacion">
-      <option value="">--</option>
-      <?php for($i=0;$i<=5;$i++): ?>
-        <option value="<?= $i ?>" <?= (($old['puntuacion'] ?? '')==$i?'selected':'') ?>><?= $i ?></option>
-      <?php endfor; ?>
-    </select>
-    <br>
-    <button type="submit">Bidali</button>
-  </form>
+        Nombre: <input type="text" name="nombre" value="<?= htmlspecialchars($old['nombre']) ?>"><br>
+        ISAN (8 dígitos): <input type="text" name="isan" value="<?= htmlspecialchars($old['isan']) ?>"><br>
+        Año: <input type="text" name="anio" value="<?= htmlspecialchars($old['anio']) ?>"><br>
+        Puntuación:
+        <select name="puntuacion">
+            <option value="">--</option>
+            <?php for ($i=0; $i<=5; $i++): ?>
+                <option value="<?= $i ?>" <?= ($old['puntuacion']==$i ? 'selected':'') ?>><?= $i ?></option>
+            <?php endfor; ?>
+        </select><br><br>
+
+        <button type="submit">Enviar</button>
+    </form>
+
+    <hr>
+
+    <!-- FORMULARIO DE BUSQUEDA -->
+    <h2>Buscar películas por nombre</h2>
+    <form method="post">
+        <input type="hidden" name="accion" value="buscar">
+        <input type="text" name="buscar" placeholder="Introduce un nombre">
+        <button type="submit">Buscar</button>
+    </form>
+
 </body>
 </html>
