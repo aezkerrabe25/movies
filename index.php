@@ -6,6 +6,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($nombre !== '') {
         $_SESSION['usuario'] = $nombre;
         // redirigir a main.php
+        $_SESSION['peliculas'] = []; // <- vaciar películas al cambiar de usuario
         header("Location: main.php");
         exit;
     } else {
