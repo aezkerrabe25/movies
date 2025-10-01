@@ -3,16 +3,20 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 session_start();
-mb_internal_encoding("UTF-8");
 
 // Normalizar (quitar acentos, pasar a minúsculas, etc.)
 function normalizar($s) {
-    $s = mb_strtolower($s, 'UTF-8');
+    // Pasar a minúsculas normales (sin multibyte)
+    $s = strtolower($s);
+
+    // Quitar acentos básicos manualmente
     $s = str_replace(
         ['á','é','í','ó','ú','ü','ñ'],
         ['a','e','i','o','u','u','n'],
         $s
     );
+
+    // Quitar todo lo que no sea letras o números
     return preg_replace('/[^a-z0-9]/','',$s);
 }
 
@@ -92,7 +96,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['accion']) && $_POST['a
     <title>ERABILTZAILEAREN FILMAK</title>
 </head>
 <body>
-    <h1>ERABILTZAILEAREN FILMAK</h1>
+    <h1>ERABILTZAILEAREN FILMAK - <?= htmlspecialchars($_SESSION['usuario'] ?? "Invitado") ?></h1>
+
 
     <!-- LISTA DE PELICULAS -->
     <h2>Lista de películas</h2>
