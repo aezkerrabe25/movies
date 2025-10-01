@@ -1,6 +1,13 @@
 <?php
 session_start();
 
+// Logout
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header("Location: index.php");
+    exit;
+}
+
 // Archivo JSON para guardar películas
 $archivo = __DIR__ . "/peliculas.json";
 
@@ -21,7 +28,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $puntuacion = $_POST['puntuacion'] ?? "";
     $buscar = trim($_POST['buscar'] ?? "");
 
-    // Si buscan por nombre
+    // Buscar
     if ($buscar !== "") {
         $resultados = [];
         foreach ($_SESSION['peliculas'] as $i => $p) {
@@ -76,6 +83,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         h1 {
             text-align: center;
             color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .logout {
+            display: block;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .logout a {
+            display: inline-block;
+            padding: 8px 15px;
+            background: #e74c3c;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .logout a:hover {
+            background: #c0392b;
         }
         .container {
             max-width: 900px;
@@ -135,6 +160,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <body>
 <div class="container">
     <h1>🎥 PELÍCULAS DE <?= htmlspecialchars($_SESSION['usuario'] ?? "INVITADO") ?></h1>
+    <div class="logout">
+        <a href="?logout=1">🚪 Cerrar sesión</a>
+    </div>
 
     <?php if($mensaje): ?>
         <div class="mensaje <?= strpos($mensaje,"añadida")||strpos($mensaje,"actualizada")?"ok":(strpos($mensaje,"eliminada")?"del":"warn") ?>">
